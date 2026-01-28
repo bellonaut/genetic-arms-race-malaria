@@ -21,6 +21,32 @@ The WHO reported approximately 249 million malaria cases and 608,000 deaths in 2
 ## Reproducibility
 The computational synthesis relies on reported effect sizes and confidence intervals from primary literature (especially Band et al. 2022) and converts them into synthetic datasets for visualization and exploratory modeling.[^1^] The notebook intentionally uses simulated data to avoid proprietary or sensitive datasets while preserving the reported directional effects and confidence intervals.
 
+## Machine Learning Expansion (v2.0)
+
+This repository now includes algorithmic risk stratification and fairness auditing capabilities:
+
+### New Components
+- **Synthetic Clinical Data Generator**: High-fidelity simulation of 20,817 individuals across 11 populations using Tai & Dhaliwal (2022) wGRS+GF+POS methodology
+- **Multi-Model Risk Prediction**: Ridge Regression, LightGBM, and SVR with Genetic Algorithm-simulated hyperparameter tuning
+- **Algorithmic Fairness Audit**: Disparate impact analysis across Gambia, Kenya, Nigeria, and other populations per IEEE 2857-2021 standards
+- **SHAP Explainability**: Model interpretation showing rs334 (HBB) dominance and mutation location effects
+- **Regulatory Documentation**: FDA-style model cards and EU AI Act compliance assessment
+
+### Legal & Policy Frameworks
+The ML module specifically addresses:
+- **GINA Compliance**: Genetic information nondiscrimination safeguards
+- **EU AI Act**: High-risk system classification and requirements for medical AI
+- **Algorithmic Fairness**: Equalized odds and demographic parity across African populations
+- **Health Equity**: Calibration assessment ensuring model validity in low-resource Nigerian contexts (NaijaCare integration)
+
+### Running the Analysis
+```bash
+pip install -r requirements.txt
+python src/synthetic_clinical_data.py
+jupyter notebook notebooks/02_ml_risk_stratification.ipynb
+jupyter notebook notebooks/03_fairness_audit.ipynb
+```
+
 ## Getting Started
 ```bash
 pip install -r requirements.txt
