@@ -1,3 +1,4 @@
+![Genetic Arms Race](genetic-arms-race-title.png)
 # Sickle-Cell Malaria Co-evolution
 
 ## Abstract
@@ -34,7 +35,6 @@ MIT License. See `LICENSE`.
 [^3^]: World Health Organization. *World Malaria Report 2022* (2022). See `references.bib`.
 
 
-![Genetic Arms Race](genetic-arms-race-title.png)
 
 # Sickle-Cell Malaria Co-evolution
 ...
