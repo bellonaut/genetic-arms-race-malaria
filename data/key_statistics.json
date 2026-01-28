@@ -1,0 +1,14 @@
+{
+  "study": "Band et al. 2022 Nature",
+  "sample_size": 5096,
+  "pfsa_loci": [
+    {"locus": "Pfsa1", "chromosome": 2, "position_bp": 631190, "p_value": 1.0e-12},
+    {"locus": "Pfsa2", "chromosome": 2, "position_bp": 814288, "p_value": 5.0e-10},
+    {"locus": "Pfsa3", "chromosome": 11, "position_bp": 1058035, "p_value": 2.0e-8}
+  ],
+  "risk_ratios": {
+    "pfsa_plus": {"rr": 0.83, "ci_low": 0.53, "ci_high": 1.30},
+    "pfsa_minus": {"rr": 0.01, "ci_low": 0.007, "ci_high": 0.03}
+  },
+  "notes": "Values are synthetic summaries for visualization only."
+}

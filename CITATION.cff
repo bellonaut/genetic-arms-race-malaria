@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+title: "Sickle-Cell Malaria Co-evolution"
+message: "If you use this repository, please cite it."
+authors:
+  - family-names: "Research"
+    given-names: "Synthetic"
+version: 0.1.0
+date-released: 2025-01-01
+repository-code: "https://example.com/sickle-cell-malaria-co-evolution"
+license: MIT

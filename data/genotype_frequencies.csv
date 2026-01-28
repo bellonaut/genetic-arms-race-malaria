@@ -1,0 +1,11 @@
+region,pfsa_status,hbas_frequency,parasite_frequency
+Gambia,Pfsa+,0.12,0.62
+Gambia,Pfsa-,0.12,0.38
+Kenya,Pfsa+,0.15,0.55
+Kenya,Pfsa-,0.15,0.45
+Malawi,Pfsa+,0.10,0.60
+Malawi,Pfsa-,0.10,0.40
+Nigeria,Pfsa+,0.18,0.57
+Nigeria,Pfsa-,0.18,0.43
+Tanzania,Pfsa+,0.13,0.58
+Tanzania,Pfsa-,0.13,0.42
