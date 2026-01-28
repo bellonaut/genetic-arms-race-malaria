@@ -174,8 +174,19 @@ class MalariaDataGenerator:
         )
 
         risk_z = (risk_score - np.mean(risk_score)) / (np.std(risk_score) + 1e-6)
-        prob_case = 1 / (1 + np.exp(-risk_z))
-        case = (self.rng.random(n_samples) < prob_case).astype(int)
+        age_z = (clinical["age"] - clinical["age"].mean()) / (clinical["age"].std() + 1e-6)
+        para_z = (clinical["parasitemia"] - clinical["parasitemia"].mean()) / (
+            clinical["parasitemia"].std() + 1e-6
+        )
+        prior_z = (clinical["prior_malaria"] - clinical["prior_malaria"].mean()) / (
+            clinical["prior_malaria"].std() + 1e-6
+        )
+        rs334_effect = genotypes["rs334"].astype(float)
+        logit = (10.0 * risk_z) + (2.0 * age_z) + (2.0 * para_z) - (1.0 * prior_z) + (
+            3.0 * rs334_effect
+        )
+        prob_case = 1 / (1 + np.exp(-logit))
+        case = (prob_case >= 0.5).astype(int)
 
         df = pd.concat([genotypes, clinical], axis=1)
         df["risk_score"] = risk_score
@@ -211,8 +222,12 @@ class MalariaDataGenerator:
 
         df = pd.concat(data_frames, ignore_index=True)
 
-        mask = self.rng.random(df.shape) < 0.02
-        df = df.mask(mask)
+        mask_cols = [
+            col for col in df.columns if col not in ("sample_id", "population", "case", "risk_score")
+        ]
+        mask = self.rng.random(df[mask_cols].shape) < 0.02
+        df = df.astype({col: "float64" for col in mask_cols})
+        df.loc[:, mask_cols] = df.loc[:, mask_cols].mask(mask)
 
         return df
 

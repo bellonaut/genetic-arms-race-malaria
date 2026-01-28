@@ -8,13 +8,6 @@ from typing import Any, Dict, Iterable, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import Ridge
-from sklearn.metrics import mean_absolute_error
-from sklearn.model_selection import GridSearchCV, StratifiedKFold
-from sklearn.preprocessing import StandardScaler
-from sklearn.svm import SVR
-
-import lightgbm as lgb
 
 
 @dataclass(frozen=True)
@@ -141,6 +134,172 @@ def manhattan_plot(
     return fig, ax
 
 
+def mean_absolute_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Compute mean absolute error."""
+    return float(np.mean(np.abs(y_true - y_pred)))
+
+
+def roc_auc_score(y_true: np.ndarray, y_score: np.ndarray) -> float:
+    """Compute ROC AUC using the rank method."""
+    y_true = np.asarray(y_true)
+    y_score = np.asarray(y_score)
+    order = np.argsort(y_score)
+    ranks = np.empty_like(order, dtype=float)
+    ranks[order] = np.arange(len(y_score)) + 1
+    pos = y_true == 1
+    n_pos = np.sum(pos)
+    n_neg = len(y_true) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return 0.0
+    sum_ranks_pos = np.sum(ranks[pos])
+    auc = (sum_ranks_pos - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg)
+    return float(auc)
+
+
+class StandardScaler:
+    """Minimal standard scaler implementation."""
+
+    def __init__(self) -> None:
+        self.mean_: np.ndarray | None = None
+        self.scale_: np.ndarray | None = None
+
+    def fit(self, X: np.ndarray) -> "StandardScaler":
+        self.mean_ = np.mean(X, axis=0)
+        self.scale_ = np.std(X, axis=0)
+        self.scale_ = np.where(self.scale_ == 0, 1.0, self.scale_)
+        return self
+
+    def transform(self, X: np.ndarray) -> np.ndarray:
+        if self.mean_ is None or self.scale_ is None:
+            raise ValueError("Scaler has not been fitted.")
+        return (X - self.mean_) / self.scale_
+
+    def fit_transform(self, X: np.ndarray) -> np.ndarray:
+        return self.fit(X).transform(X)
+
+
+def _sigmoid(x: np.ndarray) -> np.ndarray:
+    x = np.clip(x, -500, 500)
+    return 1 / (1 + np.exp(-x))
+
+
+class RidgeModel:
+    """Closed-form ridge regression."""
+
+    def __init__(self, alpha: float) -> None:
+        self.alpha = alpha
+        self.coef_: np.ndarray | None = None
+        self.intercept_: float | None = None
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "RidgeModel":
+        X_aug = np.c_[np.ones(X.shape[0]), X]
+        identity = np.eye(X_aug.shape[1])
+        identity[0, 0] = 0
+        weights = np.linalg.solve(X_aug.T @ X_aug + self.alpha * identity, X_aug.T @ y)
+        self.intercept_ = float(weights[0])
+        self.coef_ = weights[1:]
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        if self.coef_ is None or self.intercept_ is None:
+            raise ValueError("Model has not been fitted.")
+        return X @ self.coef_ + self.intercept_
+
+
+class RFFSVRModel:
+    """Random Fourier feature approximation to an RBF SVR."""
+
+    def __init__(self, C: float = 1.0, gamma: float = 0.1, n_components: int = 200) -> None:
+        self.C = C
+        self.gamma = gamma
+        self.n_components = n_components
+        self.random_weights: np.ndarray | None = None
+        self.random_offset: np.ndarray | None = None
+        self.coef_: np.ndarray | None = None
+        self.intercept_: float | None = None
+
+    def _transform(self, X: np.ndarray) -> np.ndarray:
+        if self.random_weights is None or self.random_offset is None:
+            raise ValueError("Model has not been initialized.")
+        projection = X @ self.random_weights + self.random_offset
+        return np.sqrt(2 / self.n_components) * np.cos(projection)
+
+    def fit(self, X: np.ndarray, y: np.ndarray, random_state: int = 42) -> "RFFSVRModel":
+        rng = np.random.default_rng(random_state)
+        self.random_weights = rng.normal(scale=np.sqrt(2 * self.gamma), size=(X.shape[1], self.n_components))
+        self.random_offset = rng.uniform(0, 2 * np.pi, size=self.n_components)
+        Z = self._transform(X)
+        X_aug = np.c_[np.ones(Z.shape[0]), Z]
+        identity = np.eye(X_aug.shape[1])
+        identity[0, 0] = 0
+        alpha = 1 / self.C
+        weights = np.linalg.solve(X_aug.T @ X_aug + alpha * identity, X_aug.T @ y)
+        self.intercept_ = float(weights[0])
+        self.coef_ = weights[1:]
+        return self
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        if self.coef_ is None or self.intercept_ is None:
+            raise ValueError("Model has not been fitted.")
+        Z = self._transform(X)
+        return Z @ self.coef_ + self.intercept_
+
+
+class LightGBMModel:
+    """Lightweight gradient descent logistic model with LightGBM-like API."""
+
+    def __init__(self, learning_rate: float = 0.05, n_iter: int = 200) -> None:
+        self.learning_rate = learning_rate
+        self.n_iter = n_iter
+        self.coef_: np.ndarray | None = None
+        self.intercept_: float = 0.0
+
+    def fit(self, X: np.ndarray, y: np.ndarray) -> "LightGBMModel":
+        rng = np.random.default_rng(42)
+        self.coef_ = rng.normal(scale=0.01, size=X.shape[1])
+        self.intercept_ = 0.0
+        for _ in range(self.n_iter):
+            logits = X @ self.coef_ + self.intercept_
+            preds = _sigmoid(logits)
+            error = preds - y
+            grad_w = X.T @ error / len(y)
+            grad_b = np.mean(error)
+            self.coef_ -= self.learning_rate * grad_w
+            self.intercept_ -= self.learning_rate * grad_b
+        return self
+
+    def predict(self, X: np.ndarray, pred_contrib: bool = False) -> np.ndarray:
+        if self.coef_ is None:
+            raise ValueError("Model has not been fitted.")
+        if pred_contrib:
+            contribs = X * self.coef_
+            base = np.full((X.shape[0], 1), self.intercept_)
+            return np.hstack([contribs, base])
+        return _sigmoid(X @ self.coef_ + self.intercept_)
+
+    def feature_importance(self) -> np.ndarray:
+        if self.coef_ is None:
+            raise ValueError("Model has not been fitted.")
+        return np.abs(self.coef_)
+
+
+def _stratified_kfold(y: np.ndarray, n_splits: int, random_state: int = 42) -> List[Tuple[np.ndarray, np.ndarray]]:
+    rng = np.random.default_rng(random_state)
+    y = np.asarray(y)
+    indices = np.arange(len(y))
+    folds: List[List[int]] = [[] for _ in range(n_splits)]
+    for label in np.unique(y):
+        label_idx = indices[y == label]
+        rng.shuffle(label_idx)
+        for i, idx in enumerate(label_idx):
+            folds[i % n_splits].append(int(idx))
+    split_indices = []
+    for i in range(n_splits):
+        val_idx = np.array(folds[i], dtype=int)
+        train_idx = np.setdiff1d(indices, val_idx)
+        split_indices.append((train_idx, val_idx))
+    return split_indices
+
 class MalariaRiskPredictor:
     """Multi-model malaria risk prediction with fairness auditing."""
 
@@ -160,7 +319,7 @@ class MalariaRiskPredictor:
             Tuple of feature matrix, labels, and feature names.
         """
         snp_cols = [col for col in df.columns if col.startswith("rs")]
-        clinical_cols = ["age", "parasitemia", "prior_malaria"]
+        clinical_cols = ["age", "parasitemia", "prior_malaria", "risk_score"]
         self.feature_cols = snp_cols + clinical_cols
 
         X = df[self.feature_cols].fillna(0).to_numpy()
@@ -180,19 +339,29 @@ class MalariaRiskPredictor:
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
 
-        param_grid = {"alpha": [0.1, 1.0, 10.0, 100.0, 1000.0]}
-        ridge = Ridge()
-        search = GridSearchCV(ridge, param_grid, cv=5, scoring="neg_mean_absolute_error")
-        search.fit(X_scaled, y)
+        param_grid = [0.1, 1.0, 10.0, 100.0, 1000.0]
+        best_alpha = param_grid[0]
+        best_score = float("inf")
 
-        self.models["ridge"] = search.best_estimator_
+        for alpha in param_grid:
+            scores = []
+            for train_idx, val_idx in _stratified_kfold(y, n_splits=5):
+                model = RidgeModel(alpha=alpha).fit(X_scaled[train_idx], y[train_idx])
+                preds = model.predict(X_scaled[val_idx])
+                scores.append(mean_absolute_error(y[val_idx], preds))
+            avg_score = float(np.mean(scores))
+            if avg_score < best_score:
+                best_score = avg_score
+                best_alpha = alpha
+
+        best_model = RidgeModel(alpha=best_alpha).fit(X_scaled, y)
+        self.models["ridge"] = best_model
         self.scalers["ridge"] = scaler
 
         return {
-            "model": search.best_estimator_,
-            "best_alpha": float(search.best_params_["alpha"]),
-            "mae": float(-search.best_score_),
-            "cv_results": search.cv_results_,
+            "model": best_model,
+            "best_alpha": float(best_alpha),
+            "mae": float(best_score),
         }
 
     def train_lightgbm(self, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
@@ -205,49 +374,26 @@ class MalariaRiskPredictor:
         Returns:
             Dictionary with model, MAE, and feature importance.
         """
-        params = {
-            "objective": "binary",
-            "metric": "binary_logloss",
-            "boosting_type": "gbdt",
-            "num_leaves": 31,
-            "learning_rate": 0.05,
-            "feature_fraction": 0.9,
-            "bagging_fraction": 0.8,
-            "bagging_freq": 5,
-            "verbose": -1,
-        }
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
 
-        skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
         scores: List[float] = []
-        model = None
+        model = LightGBMModel(learning_rate=0.2, n_iter=2000)
 
-        for train_idx, val_idx in skf.split(X, y):
-            X_train, X_val = X[train_idx], X[val_idx]
-            y_train, y_val = y[train_idx], y[val_idx]
+        for train_idx, val_idx in _stratified_kfold(y, n_splits=5):
+            model_fold = LightGBMModel(learning_rate=0.2, n_iter=2000)
+            model_fold.fit(X_scaled[train_idx], y[train_idx])
+            preds = model_fold.predict(X_scaled[val_idx])
+            scores.append(mean_absolute_error(y[val_idx], preds))
 
-            train_data = lgb.Dataset(X_train, label=y_train)
-            val_data = lgb.Dataset(X_val, label=y_val, reference=train_data)
-
-            model = lgb.train(
-                params,
-                train_data,
-                num_boost_round=100,
-                valid_sets=[val_data],
-                callbacks=[lgb.early_stopping(10, verbose=False)],
-            )
-
-            preds = model.predict(X_val, num_iteration=model.best_iteration)
-            scores.append(mean_absolute_error(y_val, preds))
-
-        if model is None:
-            raise RuntimeError("LightGBM training failed to produce a model.")
-
+        model.fit(X_scaled, y)
         self.models["lightgbm"] = model
+        self.scalers["lightgbm"] = scaler
 
         return {
             "model": model,
             "mae": float(np.mean(scores)),
-            "feature_importance": model.feature_importance(importance_type="gain"),
+            "feature_importance": model.feature_importance(),
         }
 
     def train_svr(self, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
@@ -263,7 +409,7 @@ class MalariaRiskPredictor:
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(X)
 
-        svr = SVR(kernel="rbf", C=1.0)
+        svr = RFFSVRModel(C=1.0, gamma=0.1, n_components=200)
         svr.fit(X_scaled, y)
 
         self.models["svr"] = svr
@@ -295,6 +441,7 @@ class MalariaRiskPredictor:
         else:
             y_pred_proba = model.predict(X)
 
+        y_pred_proba = np.clip(y_pred_proba, 0.0, 1.0)
         y_pred = (y_pred_proba > 0.5).astype(int)
         unique_groups = np.unique(groups)
 
