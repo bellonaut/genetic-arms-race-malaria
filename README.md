@@ -32,3 +32,9 @@ MIT License. See `LICENSE`.
 [^1^]: Band, G., Leffler, E. M., Jallow, M., et al. *Nature* (2022). See `references.bib`.
 [^2^]: Kwiatkowski, D. P. *American Journal of Human Genetics* (2005). See `references.bib`.
 [^3^]: World Health Organization. *World Malaria Report 2022* (2022). See `references.bib`.
+
+
+![Genetic Arms Race](genetic-arms-race-title.png)
+
+# Sickle-Cell Malaria Co-evolution
+...
