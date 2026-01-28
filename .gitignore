@@ -1,0 +1,6 @@
+# Generated outputs
+outputs/
+
+# Synthetic datasets
+/data/synthetic_clinical.csv
+/data/synthetic_clinical_metadata.json
