@@ -1,4 +1,5 @@
-![Genetic Arms Race](genetic-arms-race-title.png)
+![Genetic Arms Race](<img width="4000" height="2250" alt="genetic arms race_sickle_cell_vs_malaria - Copy-3" src="https://github.com/user-attachments/assets/f9727fb8-57da-4806-9edf-9ae5b10f074b" />
+)
 # Sickle-Cell Malaria Co-evolution
 
 ## Abstract
