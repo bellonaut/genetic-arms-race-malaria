@@ -45,6 +45,13 @@ The ML module specifically addresses:
 - **Fairness (LightGBM, per IEEE 2857-2021)**: Demographic Parity Ratio 1.00; TPR disparity 0.06 (0.94–0.99); Equalized Odds Δ 0.06; calibration error 0.0. (Source: `outputs/fairness_audit_slide.json` / `outputs/fairness_chart.png`.)
 - **Effect direction check**: rs334 shows negative correlation with risk score (≈ -0.58), matching protective expectation.
 
+
+## What I Did
+I extended my earlier biological reading of Band et al. (2022) into a working machine-learning system by implementing the position-weighted genetic risk framework of Tai & Dhaliwal (2022). Starting from population constraints rather than clean labels, I built an end-to-end pipeline on ethically generated, population-structured synthetic data (n = 20,817): simulating genotypes under Hardy-Weinberg equilibrium, engineering risk features, training multiple models, and stress-testing numerical behavior across populations. Much of the work involved debugging scale, leakage-like artifacts, and pipeline assumptions until the outputs behaved in ways that were biologically and statistically coherent.
+
+## What I Learned
+This project taught me that most of the difficulty in applied ML lives before model training. Synthetic data is deceptively fragile: small choices in scaling, denominators, or feature construction can produce metrics that look impressive but mean nothing. I learned to treat near-perfect scores as warnings rather than victories, to use simple models as diagnostic tools rather than endpoints, and to rely on sanity checks, population-level error analysis, and explicit failure modes to understand what a system is actually learning. More than anything, it clarified the difference between reproducing a signal and building something that could ever survive contact with real data.
+
 ## Data Dictionary / Schema (synthetic_clinical.csv)
 - `Population` (str): one of 11 malaria-endemic regions.
 - `rs334`, `rs_1` … `rs_103` (int): genotype calls encoded 0/1/2.
