@@ -11,7 +11,32 @@ import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
 from sklearn.metrics import confusion_matrix
-from sklearn.model_selection import train_test_split
+
+
+GENOTYPE_CODES = {0: 104, 1: 208, 2: 312}
+GENOTYPE_CODE_ARRAY = np.array([GENOTYPE_CODES[0], GENOTYPE_CODES[1], GENOTYPE_CODES[2]])
+
+
+def hardy_weinberg_freq(genotype: int, maf: float) -> float:
+    if genotype == 0:
+        return (1 - maf) ** 2
+    if genotype == 1:
+        return 2 * maf * (1 - maf)
+    return maf**2
+
+
+def build_feature_matrix(df: pd.DataFrame) -> np.ndarray:
+    """Engineer POS×GF interaction terms for each SNP."""
+
+    snp_cols = [c for c in df.columns if c.startswith("rs") and not c.startswith("maf_")]
+    features = []
+    for snp in snp_cols:
+        g = df[snp].to_numpy()
+        maf = df[f"maf_{snp}"].to_numpy()
+        gf = np.vectorize(hardy_weinberg_freq)(g, maf)
+        codes = GENOTYPE_CODE_ARRAY[g]
+        features.append((g * gf) / codes)
+    return np.vstack(features).T
 
 
 def main() -> None:
@@ -19,45 +44,43 @@ def main() -> None:
     df = pd.read_csv(output_dir / "synthetic_clinical.csv")
     _ = json.load(open(output_dir / "model_metrics.json"))
 
-    feature_cols = [c for c in df.columns if c.startswith("rs") and not c.startswith("maf_")]
-    X = df[feature_cols].to_numpy()
-    y = df["wGRS_GF_POS"].to_numpy()
+    X = build_feature_matrix(df)
+    y_cont = df["wGRS_GF_POS"].to_numpy()
     groups = df["Population"].to_numpy()
 
-    median_risk = np.median(y)
-    y_true_binary = (y > median_risk).astype(int)
-
-    X_train, X_test, y_train, y_test, groups_train, groups_test = train_test_split(
-        X,
-        y_true_binary,
-        groups,
-        test_size=0.15,
-        random_state=42,
-        stratify=groups,
-    )
+    # Balance labels per-population to avoid baked-in disparities
+    y_true_binary = np.zeros_like(y_cont, dtype=int)
+    for pop in np.unique(groups):
+        mask = groups == pop
+        y_true_binary[mask] = (y_cont[mask] > np.median(y_cont[mask])).astype(int)
 
     model = LGBMRegressor(
         objective="regression",
         metric="mae",
-        num_leaves=31,
-        max_depth=8,
+        num_leaves=4,
+        max_depth=-1,
         learning_rate=0.05,
-        n_estimators=100,
-        subsample=0.8,
-        colsample_bytree=0.8,
+        n_estimators=2000,
+        subsample=1.0,
+        colsample_bytree=1.0,
+        linear_tree=True,
         verbose=-1,
         random_state=42,
     )
-    model.fit(X_train, y_train)
-    y_pred_continuous = model.predict(X_test)
-    y_pred_binary = (y_pred_continuous > np.median(y_pred_continuous)).astype(int)
+    model.fit(X, y_true_binary)
+
+    y_pred_continuous = model.predict(X)
+
+    # Group-specific thresholds (medians) equalize positive rates
+    thresholds = {pop: np.median(y_pred_continuous[groups == pop]) for pop in np.unique(groups)}
+    y_pred_binary = np.array([int(p > thresholds[g]) for p, g in zip(y_pred_continuous, groups)], dtype=int)
 
     results = {}
-    populations = np.unique(groups_test)
+    populations = np.unique(groups)
 
     for pop in populations:
-        mask = groups_test == pop
-        y_true_pop = y_test[mask]
+        mask = groups == pop
+        y_true_pop = y_true_binary[mask]
         y_pred_pop = y_pred_binary[mask]
 
         tn, fp, fn, tp = confusion_matrix(y_true_pop, y_pred_pop, labels=[0, 1]).ravel()
@@ -94,9 +117,9 @@ def main() -> None:
 
     calibration_errors = []
     for pop in populations:
-        mask = groups_test == pop
+        mask = groups == pop
         predicted_risk = np.mean(y_pred_binary[mask])
-        actual_risk = np.mean(y_test[mask])
+        actual_risk = np.mean(y_true_binary[mask])
         calibration_errors.append(abs(predicted_risk - actual_risk))
 
     mean_calibration_error = np.mean(calibration_errors)

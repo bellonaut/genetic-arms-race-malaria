@@ -1,0 +1,32 @@
+data:
+  total_samples: 20817
+  random_state: 42
+  hwe_alpha: 2    # Beta distribution params for MAF
+  hwe_beta: 5
+
+model:
+  lightgbm:
+    objective: regression
+    metric: mae
+    num_leaves: 4
+    max_depth: -1
+    learning_rate: 0.05
+    n_estimators: 2000
+    feature_fraction: 1.0   # equals colsample_bytree=1.0
+    bagging_fraction: 1.0   # no bagging (exact recovery of linear terms)
+    bagging_freq: 0
+    linear_tree: true
+    verbose: -1
+  mlp:
+    hidden_layers: [8, 8, 8]   # 8-8-8-1 architecture
+    activation: relu           # sklearn-valid; replaces invalid 'elu'
+    solver: adam
+    alpha: 0.0001              # L2 regularization
+    learning_rate_init: 0.001
+    max_iter: 200              # increased from 100 for convergence
+    early_stopping: true
+
+validation:
+  test_size: 0.15
+  stratify: population
+  cv_folds: 5

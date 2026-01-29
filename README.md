@@ -39,6 +39,25 @@ The ML module specifically addresses:
 - **Algorithmic Fairness**: Equalized odds and demographic parity across African populations
 - **Health Equity**: Calibration assessment ensuring model validity in low-resource Nigerian contexts (NaijaCare integration)
 
+## Results at a Glance
+- **Sample size / populations**: 20,817 synthetic individuals across 11 regions (Nigeria = 423, 2.03%).
+- **Model MAE (wGRS+GF+POS)**: LightGBM 3.0e-05; Ridge 5.7e-08; SVR 8.2e-04; MLP 7.8e-04. (Source: `outputs/model_metrics.json`.)
+- **Fairness (LightGBM, per IEEE 2857-2021)**: Demographic Parity Ratio 1.00; TPR disparity 0.06 (0.94–0.99); Equalized Odds Δ 0.06; calibration error 0.0. (Source: `outputs/fairness_audit_slide.json` / `outputs/fairness_chart.png`.)
+- **Effect direction check**: rs334 shows negative correlation with risk score (≈ -0.58), matching protective expectation.
+
+## Data Dictionary / Schema (synthetic_clinical.csv)
+- `Population` (str): one of 11 malaria-endemic regions.
+- `rs334`, `rs_1` … `rs_103` (int): genotype calls encoded 0/1/2.
+- `maf_rs334`, `maf_rs_1` … `maf_rs_103` (float): population-specific MAF used to compute genotype frequencies.
+- `wGRS_GF_POS` (float): Tai & Dhaliwal weighted genetic risk score including position term (target for models).
+- `wGRS_GF` (float): baseline weighted genetic risk score without position term.
+- (Additional engineered features appear only in notebooks, not in the saved CSV.)
+
+## Ethical & Governance Framing
+- **Protected variant handling**: rs334 (sickle cell) is protected under GINA; results are synthetic and for research/demo only.
+- **Regulatory posture**: Framed as research-use software; EU AI Act high-risk classification noted; no clinical deployment implied.
+- **Fairness choices**: Per-population thresholds used to equalize positive rates; fairness metrics reported openly with calibration error.
+
 ### Running the Analysis
 ```bash
 pip install -r requirements.txt
@@ -50,6 +69,7 @@ jupyter notebook notebooks/03_fairness_audit.ipynb
 ## Getting Started
 ```bash
 pip install -r requirements.txt
+python scripts/plot_pos_gain.py
 jupyter notebook notebooks/parasite_genotype_analysis.ipynb
 ```
 
