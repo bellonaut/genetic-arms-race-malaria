@@ -1,13 +1,22 @@
 import json
 from pathlib import Path
 
-import great_expectations as ge
+try:
+    from great_expectations.dataset import PandasDataset
+except ImportError:  # pragma: no cover - graceful degradation if GE missing
+    PandasDataset = None
 
 
 def validate_dataset(df, output_path: Path | str | None = None):
     """Run lightweight GE checks tailored to the synthetic dataset."""
 
-    ge_df = ge.from_pandas(df)
+    if PandasDataset is None:
+        raise ImportError(
+            "great_expectations is not installed. Install it or skip validation step."
+        )
+
+    # GE v1.1+ removed ge.from_pandas; use PandasDataset directly
+    ge_df = PandasDataset(df.copy())
 
     # Row count must match target total
     ge_df.expect_table_row_count_to_equal(20817)
